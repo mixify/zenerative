@@ -8,3 +8,9 @@ export const sketches = Object.fromEntries(
       return [slug, loader];
     })
 );
+
+// Accept HMR here — prevent sketch file changes from triggering full page reload.
+// The actual live-reload is handled by hmr.js via WebSocket.
+if (import.meta.hot) {
+  import.meta.hot.accept();
+}

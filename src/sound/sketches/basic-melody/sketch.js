@@ -9,8 +9,8 @@ export const config = {
 };
 
 export const stacks = [
-  { name: "melody", pattern: () =>
-    note("<c3 e3 g3 b3>(3,8)")
+  { name: "meloy", pattern: () =>
+    note("<b3 e3 d3 e3>(3,8)")
       .s("piano")
       .room(slider(0.5, 0, 1))
       .gain(slider(0.5, 0, 1))

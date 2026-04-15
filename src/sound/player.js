@@ -1,10 +1,11 @@
-import { prebake, stop } from './engine.js';
+import { prebake } from './engine.js';
 import { exportAudio } from './export.js';
 import { sketches } from './sketches/index.js';
 import { StrudelMirror } from '@strudel/codemirror';
 import { transpiler } from '@strudel/transpiler';
 import '@strudel/draw';
 import { webaudioOutput, initAudioOnFirstClick, getAudioContext } from '@strudel/webaudio';
+import { registerHMR, setPlaying } from './hmr.js';
 
 export async function renderPlayer(container, slug) {
   const loader = sketches[slug];
@@ -49,13 +50,11 @@ export async function renderPlayer(container, slug) {
 
   const statusEl = container.querySelector('#status');
 
-  // Create a StrudelMirror for each stack
   sketch.stacks.forEach((stack, i) => {
     const root = container.querySelector(`#editor-${i}`);
     const canvas = container.querySelector(`#canvas-${i}`);
     const code = extractCode(stack.pattern);
 
-    // Canvas uses raw pixel dimensions — __pianoroll reads canvas.width/height directly
     const w = canvas.offsetWidth || 800;
     const h = 100;
     canvas.style.height = h + 'px';
@@ -63,9 +62,6 @@ export async function renderPlayer(container, slug) {
     canvas.height = h;
     const ctx = canvas.getContext('2d');
 
-    const drawTime = [-2, 2];
-
-    // Append .punchcard() so StrudelMirror's native draw system renders pianoroll
     const codeWithViz = code + '\n  .punchcard({fold:1})';
 
     const mirror = new StrudelMirror({
@@ -75,7 +71,7 @@ export async function renderPlayer(container, slug) {
       prebake,
       transpiler,
       drawContext: ctx,
-      drawTime,
+      drawTime: [-2, 2],
       autodraw: false,
       solo: false,
       defaultOutput: webaudioOutput,
@@ -85,21 +81,25 @@ export async function renderPlayer(container, slug) {
     mirrors.push(mirror);
   });
 
+  // Register for live sync
+  registerHMR({ mirrors, slug, statusEl });
+
+  let playing = false;
+
   function playAll() {
     statusEl.textContent = 'Playing...';
     mirrors.forEach(m => m.evaluate());
     playing = true;
+    setPlaying(true);
   }
 
   function stopAll() {
     mirrors.forEach(m => m.stop());
     statusEl.textContent = 'Stopped.';
     playing = false;
+    setPlaying(false);
   }
 
-  let playing = false;
-
-  // Cmd/Ctrl+Enter → toggle Play/Stop
   const onKeydown = (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
@@ -115,7 +115,6 @@ export async function renderPlayer(container, slug) {
   container.querySelector('#play-all').addEventListener('click', playAll);
   container.querySelector('#stop-all').addEventListener('click', stopAll);
 
-  // Back — cleanup
   container.querySelector('#back').addEventListener('click', (e) => {
     e.preventDefault();
     mirrors.forEach(m => { m.stop(); m.clear(); });
@@ -141,15 +140,12 @@ export async function renderPlayer(container, slug) {
   });
 }
 
-/** Extract Strudel code string from a pattern function. */
 function extractCode(fn) {
   let src = fn.toString();
   src = src.replace(/^\(\)\s*=>\s*\n?/, '');
   const lines = src.split('\n');
   const indents = lines.filter(l => l.trim()).map(l => l.match(/^(\s*)/)[1].length);
   const minIndent = Math.min(...indents);
-  if (minIndent > 0) {
-    src = lines.map(l => l.slice(minIndent)).join('\n');
-  }
+  if (minIndent > 0) src = lines.map(l => l.slice(minIndent)).join('\n');
   return src.trim();
 }
