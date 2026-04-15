@@ -7,14 +7,18 @@ import '@strudel/draw';
 import { webaudioOutput, initAudioOnFirstClick, getAudioContext } from '@strudel/webaudio';
 import { registerHMR, setPlaying } from './hmr.js';
 
-export async function renderPlayer(container, slug) {
-  const loader = sketches[slug];
-  if (!loader) {
-    container.innerHTML = `<p>Sound sketch "${slug}" not found.</p>`;
-    return;
+export async function renderPlayer(container, slug, preloaded) {
+  let sketch;
+  if (preloaded) {
+    sketch = preloaded;
+  } else {
+    const loader = sketches[slug];
+    if (!loader) {
+      container.innerHTML = `<p>Sound sketch "${slug}" not found.</p>`;
+      return;
+    }
+    sketch = await loader();
   }
-
-  const sketch = await loader();
   const mirrors = [];
 
   initAudioOnFirstClick();
@@ -81,8 +85,16 @@ export async function renderPlayer(container, slug) {
     mirrors.push(mirror);
   });
 
-  // Register for live sync
-  registerHMR({ mirrors, slug, statusEl });
+  // Register for live sync — rerender callback for stack add/remove
+  registerHMR({
+    mirrors, slug, statusEl, container,
+    rerender: async (c, s, wasPlaying, freshMod) => {
+      await renderPlayer(c, s, freshMod);
+      if (wasPlaying) {
+        c.querySelector('#play-all')?.click();
+      }
+    },
+  });
 
   let playing = false;
 

@@ -7,11 +7,15 @@ let mirrors = [];
 let slug = null;
 let playing = false;
 let statusEl = null;
+let rerender = null;
+let container = null;
 
 export function registerHMR(opts) {
   mirrors = opts.mirrors;
   slug = opts.slug;
   statusEl = opts.statusEl;
+  rerender = opts.rerender;
+  container = opts.container;
   playing = false;
 }
 
@@ -44,10 +48,25 @@ async function reload() {
 
     if (!mod?.stacks) return;
 
+    // Stack count changed → full re-render with fresh module
+    if (mod.stacks.length !== mirrors.length) {
+      const wasPlaying = playing;
+      mirrors.forEach(m => { m.stop(); m.clear(); });
+      if (rerender && container) {
+        await rerender(container, slug, wasPlaying, mod);
+      }
+      return;
+    }
+
+    // Same count → update code in-place
     let updated = 0;
     mod.stacks.forEach((stack, i) => {
-      if (i >= mirrors.length) return;
       const newCode = extractCode(stack.pattern) + '\n  .punchcard({fold:1})';
+      // Also update stack name
+      const nameEl = container?.querySelectorAll('.stack-name')[i];
+      if (nameEl && nameEl.textContent.toLowerCase() !== stack.name.toLowerCase()) {
+        nameEl.textContent = stack.name;
+      }
       if (newCode !== mirrors[i].code) {
         mirrors[i].setCode(newCode);
         if (playing) mirrors[i].evaluate();
