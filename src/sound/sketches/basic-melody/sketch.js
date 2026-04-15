@@ -19,7 +19,10 @@ export const stacks = [
   },
 
   { name: "drums", pattern: () =>
-    s("bd sd:2 bd hh sd:3 hh*2 cp hh")
+    s("bd sd:1 bd hh sd:3 hh*2 cp hh")
       .gain(slider(0.7, 0, 1))
   },
+
+
+
 ];
